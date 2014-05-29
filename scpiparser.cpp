@@ -81,7 +81,8 @@ size_t SCPIParser::skipCmdLine(const char * cmd, size_t len) {
  * @return number of bytes written
  */
 size_t SCPIParser::writeData(scpi_t * context, const char * data, size_t len) {
-    return context->interface->write(context, data, len);
+    return SCPI_Write(context, data, len);
+    //return context->*(interface)->write(context, data, len);
 }
 
 /**
@@ -91,7 +92,8 @@ size_t SCPIParser::writeData(scpi_t * context, const char * data, size_t len) {
  */
 int SCPIParser::flushData(scpi_t * context) {
     if (context && context->interface && context->interface->flush) {
-        return context->interface->flush(context);
+        return SCPI_Flush(context);
+        //return context->interface->flush(context);
     } else {
         return SCPI_RES_OK;
     }
@@ -140,9 +142,14 @@ void SCPIParser::processCommand(scpi_t * context) {
     SCPI_DEBUG_COMMAND(context);
     /* if callback exists - call command callback */
     if (cmd->callback != NULL) {
-        if ((cmd->callback(context) != SCPI_RES_OK) && !context->cmd_error) {
+        ;
+
+        if ( ( *(cmd->callback)((void*)context) != SCPI_RES_OK) && !context->cmd_error) {
             SCPI_ErrorPush(context, SCPI_ERROR_EXECUTION_ERROR);
         }
+//        if ((cmd->callback(context) != SCPI_RES_OK) && !context->cmd_error) {
+//            SCPI_ErrorPush(context, SCPI_ERROR_EXECUTION_ERROR);
+//        }
     }
 
     /* conditionaly write new line */
@@ -689,7 +696,8 @@ void SCPIParser::SCPI_ErrorPush(scpi_t * context, int16_t err) {
 
     if (context) {
         if (context->interface && context->interface->error) {
-            context->interface->error(context, err);
+            SCPI_Error(context,err);
+                    //context->interface->error(context, err);
         }
 
         context->cmd_error = TRUE;
@@ -1065,11 +1073,14 @@ scpi_reg_val_t SCPIParser::SCPI_RegGet(scpi_t * context, scpi_reg_name_t name) {
  */
 size_t SCPIParser::writeControl(scpi_t * context, scpi_ctrl_name_t ctrl, scpi_reg_val_t val) {
     if (context && context->interface && context->interface->control) {
-        return context->interface->control(context, ctrl, val);
+        return SCPI_Control(context, ctrl, val);
+        //return context->interface->control(context, ctrl, val);
     } else {
         return 0;
     }
 }
+
+
 
 /**
  * Set register value
@@ -1175,11 +1186,11 @@ void SCPIParser::SCPI_EventClear(scpi_t * context) {
  * @param context
  * @return
  */
-scpi_result_t SCPIParser::SCPI_CoreCls(scpi_t * context) {
-    SCPI_EventClear(context);
-    SCPI_ErrorClear(context);
-    SCPI_RegSet(context, SCPI_REG_OPER, 0);
-    SCPI_RegSet(context, SCPI_REG_QUES, 0);
+scpi_result_t SCPIParser::SCPI_CoreCls(void *context) {
+    SCPI_EventClear((scpi_t*)context);
+    SCPI_ErrorClear((scpi_t*)context);
+    SCPI_RegSet((scpi_t*)context, SCPI_REG_OPER, 0);
+    SCPI_RegSet((scpi_t*)context, SCPI_REG_QUES, 0);
     return SCPI_RES_OK;
 }
 
@@ -1264,7 +1275,8 @@ scpi_result_t SCPIParser::SCPI_CoreOpcQ(scpi_t * context) {
  */
 scpi_result_t SCPIParser::SCPI_CoreRst(scpi_t * context) {
     if (context && context->interface && context->interface->reset) {
-        return context->interface->reset(context);
+        return SCPI_Reset(context);
+        //return context->interface->reset(context);
     }
     return SCPI_RES_OK;
 }
@@ -1310,7 +1322,8 @@ scpi_result_t SCPIParser::SCPI_CoreStbQ(scpi_t * context) {
 scpi_result_t SCPIParser::SCPI_CoreTstQ(scpi_t * context) {
     int result = 0;
     if (context && context->interface && context->interface->test) {
-        result = context->interface->test(context);
+        result=SCPI_Test(context);
+        //result = context->interface->test(context);
     }
     SCPI_ResultInt(context, result);
     return SCPI_RES_OK;
@@ -1332,3 +1345,27 @@ scpi_result_t SCPIParser::SCPI_CoreWai(scpi_t * context) {
 
 
 
+size_t SCPIParser::SCPI_Write(void *context, const char *data, size_t len)
+{
+
+}
+
+int SCPIParser::SCPI_Error(void *context, int_fast16_t err)
+{
+
+}
+
+scpi_result_t SCPIParser::SCPI_Control(void *context, scpi_ctrl_name_t ctrl, scpi_reg_val_t val)
+{
+
+}
+
+scpi_result_t SCPIParser::SCPI_Reset(void *context)
+{
+
+}
+
+scpi_result_t SCPIParser::SCPI_Flush(void *context)
+{
+
+}
