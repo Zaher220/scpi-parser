@@ -144,7 +144,7 @@ void SCPIParser::processCommand(scpi_t * context) {
     if (cmd->callback != NULL) {
         ;
 
-        if ( ( *(cmd->callback)((void*)context) != SCPI_RES_OK) && !context->cmd_error) {
+        if ( ( scpi_context.paramlist.cmd->*callback((void *)(&scpi_context)) != SCPI_RES_OK) && !context->cmd_error) {
             SCPI_ErrorPush(context, SCPI_ERROR_EXECUTION_ERROR);
         }
 //        if ((cmd->callback(context) != SCPI_RES_OK) && !context->cmd_error) {
