@@ -6,8 +6,6 @@ SCPIParser::SCPIParser(QObject *parent) :
 }
 
 
-
-
 /**
  * Find command termination character
  * @param cmd - input command
@@ -80,9 +78,9 @@ size_t SCPIParser::skipCmdLine(const char * cmd, size_t len) {
  * @param len - lenght of data to be written
  * @return number of bytes written
  */
-size_t SCPIParser::writeData(scpi_t * context, const char * data, size_t len) {
-    return SCPI_Write(context, data, len);
-    //return context->*(interface)->write(context, data, len);
+size_t SCPIParser::writeData( const char * data, size_t len) {
+    return SCPI_Write(data, len);
+    //return context.*(interface)->write(data, len);
 }
 
 /**
@@ -90,10 +88,10 @@ size_t SCPIParser::writeData(scpi_t * context, const char * data, size_t len) {
  * @param context
  * @return
  */
-int SCPIParser::flushData(scpi_t * context) {
-    if (context && context->interface && context->interface->flush) {
-        return SCPI_Flush(context);
-        //return context->interface->flush(context);
+int SCPIParser::flushData() {
+    if (context.interface && context.interface->flush) {
+        return SCPI_Flush();
+        //return context.interface->flush(context);
     } else {
         return SCPI_RES_OK;
     }
@@ -104,9 +102,9 @@ int SCPIParser::flushData(scpi_t * context) {
  * @param context
  * @return number of bytes written
  */
-size_t SCPIParser::writeDelimiter(scpi_t * context) {
-    if (context->output_count > 0) {
-        return writeData(context, ", ", 2);
+size_t SCPIParser::writeDelimiter() {
+    if (context.output_count > 0) {
+        return writeData(", ", 2);
     } else {
         return 0;
     }
@@ -117,11 +115,11 @@ size_t SCPIParser::writeDelimiter(scpi_t * context) {
  * @param context
  * @return number of characters written
  */
-size_t SCPIParser::writeNewLine(scpi_t * context) {
-    if (context->output_count > 0) {
+size_t SCPIParser::writeNewLine() {
+    if (context.output_count > 0) {
         size_t len;
-        len = writeData(context, "\r\n", 2);
-        flushData(context);
+        len = writeData("\r\n", 2);
+        flushData();
         return len;
     } else {
         return 0;
@@ -132,53 +130,53 @@ size_t SCPIParser::writeNewLine(scpi_t * context) {
  * Process command
  * @param context
  */
-void SCPIParser::processCommand(scpi_t * context) {
-    const scpi_command_t * cmd = context->paramlist.cmd;
+void SCPIParser::processCommand() {
+    const scpi_command_t * cmd = context.paramlist.cmd;
 
-    context->cmd_error = FALSE;
-    context->output_count = 0;
-    context->input_count = 0;
+    context.cmd_error = FALSE;
+    context.output_count = 0;
+    context.input_count = 0;
 
     SCPI_DEBUG_COMMAND(context);
     /* if callback exists - call command callback */
     if (cmd->callback != NULL) {
         ;
-
-        if ( ( scpi_context.paramlist.cmd->*callback((void *)(&scpi_context)) != SCPI_RES_OK) && !context->cmd_error) {
-            SCPI_ErrorPush(context, SCPI_ERROR_EXECUTION_ERROR);
+//context.paramlist.cmd->callback()
+        if ( ( (context.paramlist.cmd->*callback)() != SCPI_RES_OK) && !context.cmd_error) {
+            SCPI_ErrorPush(SCPI_ERROR_EXECUTION_ERROR);
         }
-//        if ((cmd->callback(context) != SCPI_RES_OK) && !context->cmd_error) {
-//            SCPI_ErrorPush(context, SCPI_ERROR_EXECUTION_ERROR);
-//        }
+        //        if ((cmd->callback(context) != SCPI_RES_OK) && !context.cmd_error) {
+        //            SCPI_ErrorPush(SCPI_ERROR_EXECUTION_ERROR);
+        //        }
     }
 
     /* conditionaly write new line */
-    writeNewLine(context);
+    writeNewLine();
 
     /* skip all whitespaces */
-    paramSkipWhitespace(context);
+    paramSkipWhitespace();
 
     /* set error if command callback did not read all parameters */
-    if (context->paramlist.length != 0 && !context->cmd_error) {
-        SCPI_ErrorPush(context, SCPI_ERROR_PARAMETER_NOT_ALLOWED);
+    if (context.paramlist.length != 0 && !context.cmd_error) {
+        SCPI_ErrorPush(SCPI_ERROR_PARAMETER_NOT_ALLOWED);
     }
 }
 
 /**
  * Cycle all patterns and search matching pattern. Execute command callback.
  * @param context
- * @result TRUE if context->paramlist is filled with correct values
+ * @result TRUE if context.paramlist is filled with correct values
  */
-scpi_bool_t SCPIParser::findCommand(scpi_t * context, const char * cmdline_ptr, size_t cmdline_len, size_t cmd_len) {
+scpi_bool_t SCPIParser::findCommand(const char * cmdline_ptr, size_t cmdline_len, size_t cmd_len) {
     int32_t i;
     const scpi_command_t * cmd;
 
-    for (i = 0; context->cmdlist[i].pattern != NULL; i++) {
-        cmd = &context->cmdlist[i];
+    for (i = 0; context.cmdlist[i].pattern != NULL; i++) {
+        cmd = &context.cmdlist[i];
         if (matchCommand(cmd->pattern, cmdline_ptr, cmd_len)) {
-            context->paramlist.cmd = cmd;
-            context->paramlist.parameters = cmdline_ptr + cmd_len;
-            context->paramlist.length = cmdline_len - cmd_len;
+            context.paramlist.cmd = cmd;
+            context.paramlist.parameters = cmdline_ptr + cmd_len;
+            context.paramlist.length = cmdline_len - cmd_len;
             return TRUE;
         }
     }
@@ -192,7 +190,7 @@ scpi_bool_t SCPIParser::findCommand(scpi_t * context, const char * cmdline_ptr, 
  * @param len - command line length
  * @return 1 if the last evaluated command was found
  */
-int SCPIParser::SCPI_Parse(scpi_t * context, char * data, size_t len) {
+int SCPIParser::SCPI_Parse(char * data, size_t len) {
     int result = 0;
     const char * cmdline_end = data + len;
     char * cmdline_ptr = data;
@@ -201,10 +199,6 @@ int SCPIParser::SCPI_Parse(scpi_t * context, char * data, size_t len) {
     char * cmdline_ptr_prev = NULL;
     size_t cmd_len_prev = 0;
 
-    if (context == NULL) {
-        return -1;
-    }
-
     while (cmdline_ptr < cmdline_end) {
         result = 0;
         cmd_len = cmdTerminatorPos(cmdline_ptr, cmdline_end - cmdline_ptr);
@@ -212,13 +206,13 @@ int SCPIParser::SCPI_Parse(scpi_t * context, char * data, size_t len) {
             composeCompoundCommand(cmdline_ptr_prev, cmd_len_prev,
                                    &cmdline_ptr, &cmd_len);
             cmdline_len = cmdlineSeparatorPos(cmdline_ptr, cmdline_end - cmdline_ptr);
-            if(findCommand(context, cmdline_ptr, cmdline_len, cmd_len)) {
-                processCommand(context);
+            if(findCommand(cmdline_ptr, cmdline_len, cmd_len)) {
+                processCommand();
                 result = 1;
                 cmdline_ptr_prev = cmdline_ptr;
                 cmd_len_prev = cmd_len;
             } else {
-                SCPI_ErrorPush(context, SCPI_ERROR_UNDEFINED_HEADER);
+                SCPI_ErrorPush(SCPI_ERROR_UNDEFINED_HEADER);
             }
         }
         cmdline_ptr += skipCmdLine(cmdline_ptr, cmdline_end - cmdline_ptr);
@@ -234,22 +228,22 @@ int SCPIParser::SCPI_Parse(scpi_t * context, char * data, size_t len) {
  * @param buffer
  * @param interface
  */
-void SCPIParser::SCPI_Init(scpi_t * context) {
-    if (context->idn[0] == NULL) {
-        context->idn[0] = SCPI_DEFAULT_1_MANUFACTURE;
+void SCPIParser::SCPI_Init() {
+    if (context.idn[0] == NULL) {
+        context.idn[0] = SCPI_DEFAULT_1_MANUFACTURE;
     }
-    if (context->idn[1] == NULL) {
-        context->idn[1] = SCPI_DEFAULT_2_MODEL;
+    if (context.idn[1] == NULL) {
+        context.idn[1] = SCPI_DEFAULT_2_MODEL;
     }
-    if (context->idn[2] == NULL) {
-        context->idn[2] = SCPI_DEFAULT_3;
+    if (context.idn[2] == NULL) {
+        context.idn[2] = SCPI_DEFAULT_3;
     }
-    if (context->idn[3] == NULL) {
-        context->idn[3] = SCPI_DEFAULT_4_REVISION;
+    if (context.idn[3] == NULL) {
+        context.idn[3] = SCPI_DEFAULT_4_REVISION;
     }
 
-    context->buffer.position = 0;
-    SCPI_ErrorInit(context);
+    context.buffer.position = 0;
+    SCPI_ErrorInit();
 }
 
 /**
@@ -262,34 +256,34 @@ void SCPIParser::SCPI_Init(scpi_t * context) {
  * @param len - length of data
  * @return
  */
-int SCPIParser::SCPI_Input(scpi_t * context, const char * data, size_t len) {
+int SCPIParser::SCPI_Input(const char * data, size_t len) {
     int result = 0;
     const char * cmd_term;
     if (len == 0) {
-        context->buffer.data[context->buffer.position] = 0;
-        result = SCPI_Parse(context, context->buffer.data, context->buffer.position);
-        context->buffer.position = 0;
+        context.buffer.data[context.buffer.position] = 0;
+        result = SCPI_Parse(context.buffer.data, context.buffer.position);
+        context.buffer.position = 0;
     } else {
         size_t buffer_free;
         int ws;
-        buffer_free = context->buffer.length - context->buffer.position;
+        buffer_free = context.buffer.length - context.buffer.position;
         if (len > (buffer_free - 1)) {
             return -1;
         }
-        memcpy(&context->buffer.data[context->buffer.position], data, len);
-        context->buffer.position += len;
-        context->buffer.data[context->buffer.position] = 0;
+        memcpy(&context.buffer.data[context.buffer.position], data, len);
+        context.buffer.position += len;
+        context.buffer.data[context.buffer.position] = 0;
 
-        ws = skipWhitespace(context->buffer.data, context->buffer.position);
-        cmd_term = cmdlineTerminator(context->buffer.data + ws, context->buffer.position - ws);
+        ws = skipWhitespace(context.buffer.data, context.buffer.position);
+        cmd_term = cmdlineTerminator(context.buffer.data + ws, context.buffer.position - ws);
         while (cmd_term != NULL) {
-            int curr_len = cmd_term - context->buffer.data;
-            result = SCPI_Parse(context, context->buffer.data + ws, curr_len - ws);
-            memmove(context->buffer.data, cmd_term, context->buffer.position - curr_len);
-            context->buffer.position -= curr_len;
+            int curr_len = cmd_term - context.buffer.data;
+            result = SCPI_Parse(context.buffer.data + ws, curr_len - ws);
+            memmove(context.buffer.data, cmd_term, context.buffer.position - curr_len);
+            context.buffer.position -= curr_len;
 
-            ws = skipWhitespace(context->buffer.data, context->buffer.position);
-            cmd_term = cmdlineTerminator(context->buffer.data + ws, context->buffer.position - ws);
+            ws = skipWhitespace(context.buffer.data, context.buffer.position);
+            cmd_term = cmdlineTerminator(context.buffer.data + ws, context.buffer.position - ws);
         }
     }
 
@@ -304,12 +298,12 @@ int SCPIParser::SCPI_Input(scpi_t * context, const char * data, size_t len) {
  * @param data
  * @return
  */
-size_t SCPIParser::SCPI_ResultString(scpi_t * context, const char * data) {
+size_t SCPIParser::SCPI_ResultString(const char * data) {
     size_t len = strlen(data);
     size_t result = 0;
-    result += writeDelimiter(context);
-    result += writeData(context, data, len);
-    context->output_count++;
+    result += writeDelimiter();
+    result += writeData(data, len);
+    context.output_count++;
     return result;
 }
 
@@ -319,13 +313,13 @@ size_t SCPIParser::SCPI_ResultString(scpi_t * context, const char * data) {
  * @param val
  * @return
  */
-size_t SCPIParser::SCPI_ResultInt(scpi_t * context, int32_t val) {
+size_t SCPIParser::SCPI_ResultInt(int32_t val) {
     char buffer[12];
     size_t result = 0;
     size_t len = longToStr(val, buffer, sizeof (buffer));
-    result += writeDelimiter(context);
-    result += writeData(context, buffer, len);
-    context->output_count++;
+    result += writeDelimiter();
+    result += writeData(buffer, len);
+    context.output_count++;
     return result;
 }
 
@@ -335,8 +329,8 @@ size_t SCPIParser::SCPI_ResultInt(scpi_t * context, int32_t val) {
  * @param val
  * @return
  */
-size_t SCPIParser::SCPI_ResultBool(scpi_t * context, scpi_bool_t val) {
-    return SCPI_ResultInt(context, val ? 1 : 0);
+size_t SCPIParser::SCPI_ResultBool(scpi_bool_t val) {
+    return SCPI_ResultInt(val ? 1 : 0);
 }
 
 /**
@@ -345,13 +339,13 @@ size_t SCPIParser::SCPI_ResultBool(scpi_t * context, scpi_bool_t val) {
  * @param val
  * @return
  */
-size_t SCPIParser::SCPI_ResultDouble(scpi_t * context, double val) {
+size_t SCPIParser::SCPI_ResultDouble(double val) {
     char buffer[32];
     size_t result = 0;
     size_t len = doubleToStr(val, buffer, sizeof (buffer));
-    result += writeDelimiter(context);
-    result += writeData(context, buffer, len);
-    context->output_count++;
+    result += writeDelimiter();
+    result += writeData(buffer, len);
+    context.output_count++;
     return result;
 
 }
@@ -362,13 +356,13 @@ size_t SCPIParser::SCPI_ResultDouble(scpi_t * context, double val) {
  * @param data
  * @return
  */
-size_t SCPIParser::SCPI_ResultText(scpi_t * context, const char * data) {
+size_t SCPIParser::SCPI_ResultText(const char * data) {
     size_t result = 0;
-    result += writeDelimiter(context);
-    result += writeData(context, "\"", 1);
-    result += writeData(context, data, strlen(data));
-    result += writeData(context, "\"", 1);
-    context->output_count++;
+    result += writeDelimiter();
+    result += writeData("\"", 1);
+    result += writeData(data, strlen(data));
+    result += writeData("\"", 1);
+    context.output_count++;
     return result;
 }
 
@@ -379,21 +373,21 @@ size_t SCPIParser::SCPI_ResultText(scpi_t * context, const char * data) {
  * @param context
  * @param num
  */
-void SCPIParser::paramSkipBytes(scpi_t * context, size_t num) {
-    if (context->paramlist.length < num) {
-        num = context->paramlist.length;
+void SCPIParser::paramSkipBytes(size_t num) {
+    if (context.paramlist.length < num) {
+        num = context.paramlist.length;
     }
-    context->paramlist.parameters += num;
-    context->paramlist.length -= num;
+    context.paramlist.parameters += num;
+    context.paramlist.length -= num;
 }
 
 /**
  * Skip white spaces from the beggining of parameters
  * @param context
  */
-void SCPIParser::paramSkipWhitespace(scpi_t * context) {
-    size_t ws = skipWhitespace(context->paramlist.parameters, context->paramlist.length);
-    paramSkipBytes(context, ws);
+void SCPIParser::paramSkipWhitespace() {
+    size_t ws = skipWhitespace(context.paramlist.parameters, context.paramlist.length);
+    paramSkipBytes(ws);
 }
 
 /**
@@ -402,24 +396,24 @@ void SCPIParser::paramSkipWhitespace(scpi_t * context) {
  * @param mandatory
  * @return
  */
-scpi_bool_t SCPIParser::paramNext(scpi_t * context, scpi_bool_t mandatory) {
-    paramSkipWhitespace(context);
-    if (context->paramlist.length == 0) {
+scpi_bool_t SCPIParser::paramNext(scpi_bool_t mandatory) {
+    paramSkipWhitespace();
+    if (context.paramlist.length == 0) {
         if (mandatory) {
-            SCPI_ErrorPush(context, SCPI_ERROR_MISSING_PARAMETER);
+            SCPI_ErrorPush(SCPI_ERROR_MISSING_PARAMETER);
         }
         return FALSE;
     }
-    if (context->input_count != 0) {
-        if (context->paramlist.parameters[0] == ',') {
-            paramSkipBytes(context, 1);
-            paramSkipWhitespace(context);
+    if (context.input_count != 0) {
+        if (context.paramlist.parameters[0] == ',') {
+            paramSkipBytes(1);
+            paramSkipWhitespace();
         } else {
-            SCPI_ErrorPush(context, SCPI_ERROR_INVALID_SEPARATOR);
+            SCPI_ErrorPush(SCPI_ERROR_INVALID_SEPARATOR);
             return FALSE;
         }
     }
-    context->input_count++;
+    context.input_count++;
     return TRUE;
 }
 
@@ -430,7 +424,7 @@ scpi_bool_t SCPIParser::paramNext(scpi_t * context, scpi_bool_t mandatory) {
  * @param mandatory
  * @return
  */
-scpi_bool_t SCPIParser::SCPI_ParamInt(scpi_t * context, int32_t * value, scpi_bool_t mandatory) {
+scpi_bool_t SCPIParser::SCPI_ParamInt(int32_t * value, scpi_bool_t mandatory) {
     const char * param;
     size_t param_len;
     size_t num_len;
@@ -439,14 +433,14 @@ scpi_bool_t SCPIParser::SCPI_ParamInt(scpi_t * context, int32_t * value, scpi_bo
         return FALSE;
     }
 
-    if (!SCPI_ParamString(context, &param, &param_len, mandatory)) {
+    if (!SCPI_ParamString(&param, &param_len, mandatory)) {
         return FALSE;
     }
 
     num_len = strToLong(param, value);
 
     if (num_len != param_len) {
-        SCPI_ErrorPush(context, SCPI_ERROR_SUFFIX_NOT_ALLOWED);
+        SCPI_ErrorPush(SCPI_ERROR_SUFFIX_NOT_ALLOWED);
         return FALSE;
     }
 
@@ -460,7 +454,7 @@ scpi_bool_t SCPIParser::SCPI_ParamInt(scpi_t * context, int32_t * value, scpi_bo
  * @param mandatory
  * @return
  */
-scpi_bool_t SCPIParser::SCPI_ParamDouble(scpi_t * context, double * value, scpi_bool_t mandatory) {
+scpi_bool_t SCPIParser::SCPI_ParamDouble(double * value, scpi_bool_t mandatory) {
     const char * param;
     size_t param_len;
     size_t num_len;
@@ -469,14 +463,14 @@ scpi_bool_t SCPIParser::SCPI_ParamDouble(scpi_t * context, double * value, scpi_
         return FALSE;
     }
 
-    if (!SCPI_ParamString(context, &param, &param_len, mandatory)) {
+    if (!SCPI_ParamString(&param, &param_len, mandatory)) {
         return FALSE;
     }
 
     num_len = strToDouble(param, value);
 
     if (num_len != param_len) {
-        SCPI_ErrorPush(context, SCPI_ERROR_SUFFIX_NOT_ALLOWED);
+        SCPI_ErrorPush(SCPI_ERROR_SUFFIX_NOT_ALLOWED);
         return FALSE;
     }
 
@@ -491,20 +485,20 @@ scpi_bool_t SCPIParser::SCPI_ParamDouble(scpi_t * context, double * value, scpi_
  * @param mandatory
  * @return
  */
-scpi_bool_t SCPIParser::SCPI_ParamString(scpi_t * context, const char ** value, size_t * len, scpi_bool_t mandatory) {
+scpi_bool_t SCPIParser::SCPI_ParamString(const char ** value, size_t * len, scpi_bool_t mandatory) {
     size_t length;
 
     if (!value || !len) {
         return FALSE;
     }
 
-    if (!paramNext(context, mandatory)) {
+    if (!paramNext(mandatory)) {
         return FALSE;
     }
 
-    if (locateStr(context->paramlist.parameters, context->paramlist.length, value, &length)) {
-        paramSkipBytes(context, length);
-        paramSkipWhitespace(context);
+    if (locateStr(context.paramlist.parameters, context.paramlist.length, value, &length)) {
+        paramSkipBytes(length);
+        paramSkipWhitespace();
         if (len) {
             *len = length;
         }
@@ -522,19 +516,19 @@ scpi_bool_t SCPIParser::SCPI_ParamString(scpi_t * context, const char ** value, 
  * @param mandatory
  * @return
  */
-scpi_bool_t SCPIParser::SCPI_ParamText(scpi_t * context, const char ** value, size_t * len, scpi_bool_t mandatory) {
+scpi_bool_t SCPIParser::SCPI_ParamText(const char ** value, size_t * len, scpi_bool_t mandatory) {
     size_t length;
 
     if (!value || !len) {
         return FALSE;
     }
 
-    if (!paramNext(context, mandatory)) {
+    if (!paramNext(mandatory)) {
         return FALSE;
     }
 
-    if (locateText(context->paramlist.parameters, context->paramlist.length, value, &length)) {
-        paramSkipBytes(context, length);
+    if (locateText(context.paramlist.parameters, context.paramlist.length, value, &length)) {
+        paramSkipBytes(length);
         if (len) {
             *len = length;
         }
@@ -551,7 +545,7 @@ scpi_bool_t SCPIParser::SCPI_ParamText(scpi_t * context, const char ** value, si
  * @param mandatory
  * @return
  */
-scpi_bool_t SCPIParser::SCPI_ParamBool(scpi_t * context, scpi_bool_t * value, scpi_bool_t mandatory) {
+scpi_bool_t SCPIParser::SCPI_ParamBool(scpi_bool_t * value, scpi_bool_t mandatory) {
     const char * param;
     size_t param_len;
     size_t num_len;
@@ -561,7 +555,7 @@ scpi_bool_t SCPIParser::SCPI_ParamBool(scpi_t * context, scpi_bool_t * value, sc
         return FALSE;
     }
 
-    if (!SCPI_ParamString(context, &param, &param_len, mandatory)) {
+    if (!SCPI_ParamString(&param, &param_len, mandatory)) {
         return FALSE;
     }
 
@@ -573,7 +567,7 @@ scpi_bool_t SCPIParser::SCPI_ParamBool(scpi_t * context, scpi_bool_t * value, sc
         num_len = strToLong(param, &i);
 
         if (num_len != param_len) {
-            SCPI_ErrorPush(context, SCPI_ERROR_SUFFIX_NOT_ALLOWED);
+            SCPI_ErrorPush(SCPI_ERROR_SUFFIX_NOT_ALLOWED);
             return FALSE;
         }
 
@@ -591,7 +585,7 @@ scpi_bool_t SCPIParser::SCPI_ParamBool(scpi_t * context, scpi_bool_t * value, sc
  * @param mandatory
  * @return
  */
-scpi_bool_t SCPIParser::SCPI_ParamChoice(scpi_t * context, const char * options[], int32_t * value, scpi_bool_t mandatory) {
+scpi_bool_t SCPIParser::SCPI_ParamChoice(const char * options[], int32_t * value, scpi_bool_t mandatory) {
     const char * param;
     size_t param_len;
     size_t res;
@@ -600,7 +594,7 @@ scpi_bool_t SCPIParser::SCPI_ParamChoice(scpi_t * context, const char * options[
         return FALSE;
     }
 
-    if (!SCPI_ParamString(context, &param, &param_len, mandatory)) {
+    if (!SCPI_ParamString(&param, &param_len, mandatory)) {
         return FALSE;
     }
 
@@ -611,48 +605,37 @@ scpi_bool_t SCPIParser::SCPI_ParamChoice(scpi_t * context, const char * options[
         }
     }
 
-    SCPI_ErrorPush(context, SCPI_ERROR_ILLEGAL_PARAMETER_VALUE);
+    SCPI_ErrorPush(SCPI_ERROR_ILLEGAL_PARAMETER_VALUE);
     return FALSE;
 }
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-void SCPIParser::SCPI_ErrorInit(scpi_t *context)
+void SCPIParser::SCPI_ErrorInit()
 {
     /*
      * // FreeRTOS
-     * context->error_queue = (scpi_error_queue_t)xQueueCreate(100, sizeof(int16_t));
+     * context.error_queue = (scpi_error_queue_t)xQueueCreate(100, sizeof(int16_t));
      */
 
     /* basic FIFO */
-    context->error_queue = (scpi_error_queue_t)&local_error_queue;
-    fifo_init((fifo_t *)context->error_queue);
+    context.error_queue = (scpi_error_queue_t)&local_error_queue;
+    fifo_init((fifo_t *)context.error_queue);
 }
 
 /**
  * Clear error queue
  * @param context - scpi context
  */
-void SCPIParser::SCPI_ErrorClear(scpi_t *context)
+void SCPIParser::SCPI_ErrorClear()
 {
     /*
      * // FreeRTOS
-     * xQueueReset((xQueueHandle)context->error_queue);
+     * xQueueReset((xQueueHandle)context.error_queue);
      */
 
     /* basic FIFO */
-    fifo_clear((fifo_t *)context->error_queue);
+    fifo_clear((fifo_t *)context.error_queue);
 }
 
 /**
@@ -660,19 +643,19 @@ void SCPIParser::SCPI_ErrorClear(scpi_t *context)
  * @param context - scpi context
  * @return error number
  */
-int16_t SCPIParser::SCPI_ErrorPop(scpi_t *context)
+int16_t SCPIParser::SCPI_ErrorPop()
 {
     int16_t result = 0;
 
     /*
      * // FreeRTOS
-     * if (pdFALSE == xQueueReceive((xQueueHandle)context->error_queue, &result, 0)) {
+     * if (pdFALSE == xQueueReceive((xQueueHandle)context.error_queue, &result, 0)) {
      *   result = 0;
      * }
      */
 
     /* basic FIFO */
-    fifo_remove((fifo_t *)context->error_queue, &result);
+    fifo_remove((fifo_t *)context.error_queue, &result);
 
     return result;
 }
@@ -682,26 +665,26 @@ int16_t SCPIParser::SCPI_ErrorPop(scpi_t *context)
  * @param context - scpi context
  * @param err - error number
  */
-void SCPIParser::SCPI_ErrorPush(scpi_t * context, int16_t err) {
+void SCPIParser::SCPI_ErrorPush(int16_t err) {
 
     int i;
 
-    SCPI_ErrorAddInternal(context, err);
+    SCPI_ErrorAddInternal(err);
 
     for(i = 0; i < ERROR_DEFS_N; i++) {
         if ((err <= errs[i].from) && (err >= errs[i].to)) {
-            SCPI_RegSetBits(context, SCPI_REG_ESR, errs[i].bit);
+            SCPI_RegSetBits(SCPI_REG_ESR, errs[i].bit);
         }
     }
 
-    if (context) {
-        if (context->interface && context->interface->error) {
-            SCPI_Error(context,err);
-                    //context->interface->error(context, err);
-        }
-
-        context->cmd_error = TRUE;
+    //if (context) {
+    if (context.interface && context.interface->error) {
+        SCPI_Error(err);
+        //context.interface->error(err);
     }
+
+    context.cmd_error = TRUE;
+    // }
 }
 
 /**
@@ -709,17 +692,17 @@ void SCPIParser::SCPI_ErrorPush(scpi_t * context, int16_t err) {
  * @param context
  * @return
  */
-int32_t SCPIParser::SCPI_ErrorCount(scpi_t *context)
+int32_t SCPIParser::SCPI_ErrorCount()
 {
     int16_t result = 0;
 
     /*
      * // FreeRTOS
-     * result = uxQueueMessagesWaiting((xQueueHandle)context->error_queue);
+     * result = uxQueueMessagesWaiting((xQueueHandle)context.error_queue);
      */
 
     /* basic FIFO */
-    fifo_count((fifo_t *)context->error_queue, &result);
+    fifo_count((fifo_t *)context.error_queue, &result);
 
     return result;
 }
@@ -740,14 +723,14 @@ const char *SCPIParser::SCPI_ErrorTranslate(int16_t err)
     }
 }
 
-void SCPIParser::SCPI_ErrorAddInternal(scpi_t * context, int16_t err) {
+void SCPIParser::SCPI_ErrorAddInternal( int16_t err) {
     /*
      * // FreeRTOS
-     * xQueueSend((xQueueHandle)context->error_queue, &err, 0);
+     * xQueueSend((xQueueHandle)context.error_queue, &err, 0);
      */
 
     /* basic FIFO */
-    fifo_add((fifo_t *)context->error_queue, err);
+    fifo_add((fifo_t *)context.error_queue, err);
 }
 
 
@@ -758,12 +741,12 @@ void SCPIParser::SCPI_ErrorAddInternal(scpi_t * context, int16_t err) {
  * @param context
  * @return
  */
-scpi_bool_t SCPIParser::SCPI_DebugCommand(scpi_t * context) {
+scpi_bool_t SCPIParser::SCPI_DebugCommand() {
     size_t res;
-    printf("**DEBUG: %s (\"", context->paramlist.cmd->pattern);
-    res = fwrite(context->paramlist.parameters, 1, context->paramlist.length, stdout);
+    printf("**DEBUG: %s (\"", context.paramlist.cmd->pattern);
+    res = fwrite(context.paramlist.parameters, 1, context.paramlist.length, stdout);
     (void)res;
-    printf("\" - %lu\r\n", (unsigned long)context->paramlist.length);
+    printf("\" - %lu\r\n", (unsigned long)context.paramlist.length);
 
     return TRUE;
 }
@@ -921,7 +904,7 @@ const char * SCPIParser::translateUnitInverse(const scpi_unit_def_t * units, con
  * @param value preparsed numeric value
  * @return TRUE if value parameter was converted to base units
  */
-scpi_bool_t SCPIParser::transformNumber(scpi_t * context, const char * unit, size_t len, scpi_number_t * value) {
+scpi_bool_t SCPIParser::transformNumber(const char * unit, size_t len, scpi_number_t * value) {
     size_t s;
     const scpi_unit_def_t * unitDef;
     s = skipWhitespace(unit, len);
@@ -931,10 +914,10 @@ scpi_bool_t SCPIParser::transformNumber(scpi_t * context, const char * unit, siz
         return TRUE;
     }
 
-    unitDef = translateUnit(context->units, unit + s, len - s);
+    unitDef = translateUnit(context.units, unit + s, len - s);
 
     if (unitDef == NULL) {
-        SCPI_ErrorPush(context, SCPI_ERROR_INVALID_SUFFIX);
+        SCPI_ErrorPush(SCPI_ERROR_INVALID_SUFFIX);
         return FALSE;
     }
 
@@ -951,14 +934,14 @@ scpi_bool_t SCPIParser::transformNumber(scpi_t * context, const char * unit, siz
  * @param mandatory if the parameter is mandatory
  * @return
  */
-scpi_bool_t SCPIParser::SCPI_ParamNumber(scpi_t * context, scpi_number_t * value, scpi_bool_t mandatory) {
+scpi_bool_t SCPIParser::SCPI_ParamNumber(scpi_number_t * value, scpi_bool_t mandatory) {
     scpi_bool_t result;
     const char * param;
     size_t len;
     size_t numlen;
 
     /* read parameter and shift to the next one */
-    result = SCPI_ParamString(context, &param, &len, mandatory);
+    result = SCPI_ParamString(&param, &len, mandatory);
 
     /* value not initializes */
     if (!value) {
@@ -974,7 +957,7 @@ scpi_bool_t SCPIParser::SCPI_ParamNumber(scpi_t * context, scpi_number_t * value
     }
 
     /* convert string to special number type */
-    if (translateSpecialNumber(context->special_numbers, param, len, value)) {
+    if (translateSpecialNumber(context.special_numbers, param, len, value)) {
         /* found special type */
         return TRUE;
     }
@@ -984,7 +967,7 @@ scpi_bool_t SCPIParser::SCPI_ParamNumber(scpi_t * context, scpi_number_t * value
 
     /* transform units of value */
     if (numlen <= len) {
-        return transformNumber(context, param + numlen, len - numlen, value);
+        return transformNumber(param + numlen, len - numlen, value);
     }
     return FALSE;
 
@@ -998,7 +981,7 @@ scpi_bool_t SCPIParser::SCPI_ParamNumber(scpi_t * context, scpi_number_t * value
  * @param len max length of string
  * @return number of chars written to string
  */
-size_t SCPIParser::SCPI_NumberToStr(scpi_t * context, scpi_number_t * value, char * str, size_t len) {
+size_t SCPIParser::SCPI_NumberToStr(scpi_number_t * value, char * str, size_t len) {
     const char * type;
     const char * unit;
     size_t result;
@@ -1007,7 +990,7 @@ size_t SCPIParser::SCPI_NumberToStr(scpi_t * context, scpi_number_t * value, cha
         return 0;
     }
 
-    type = translateSpecialNumberInverse(context->special_numbers, value->type);
+    type = translateSpecialNumberInverse(context.special_numbers, value->type);
 
     if (type) {
         strncpy(str, type, len);
@@ -1016,7 +999,7 @@ size_t SCPIParser::SCPI_NumberToStr(scpi_t * context, scpi_number_t * value, cha
 
     result = doubleToStr(value->value, str, len);
 
-    unit = translateUnitInverse(context->units, value->unit);
+    unit = translateUnitInverse(context.units, value->unit);
 
     if (unit) {
         strncat(str, " ", len);
@@ -1033,8 +1016,8 @@ size_t SCPIParser::SCPI_NumberToStr(scpi_t * context, scpi_number_t * value, cha
  * @param context
  * @param name - register name
  */
-void SCPIParser::regUpdate(scpi_t * context, scpi_reg_name_t name) {
-    SCPI_RegSet(context, name, SCPI_RegGet(context, name));
+void SCPIParser::regUpdate(scpi_reg_name_t name) {
+    SCPI_RegSet(name, SCPI_RegGet(name));
 }
 
 /**
@@ -1044,11 +1027,11 @@ void SCPIParser::regUpdate(scpi_t * context, scpi_reg_name_t name) {
  * @param mask name of mask register (enable register)
  * @param stbBits bits to clear or set in STB
  */
-void SCPIParser::regUpdateSTB(scpi_t * context, scpi_reg_val_t val, scpi_reg_name_t mask, scpi_reg_val_t stbBits) {
-    if (val & SCPI_RegGet(context, mask)) {
-        SCPI_RegSetBits(context, SCPI_REG_STB, stbBits);
+void SCPIParser::regUpdateSTB(scpi_reg_val_t val, scpi_reg_name_t mask, scpi_reg_val_t stbBits) {
+    if (val & SCPI_RegGet(mask)) {
+        SCPI_RegSetBits(SCPI_REG_STB, stbBits);
     } else {
-        SCPI_RegClearBits(context, SCPI_REG_STB, stbBits);
+        SCPI_RegClearBits(SCPI_REG_STB, stbBits);
     }
 }
 
@@ -1057,9 +1040,9 @@ void SCPIParser::regUpdateSTB(scpi_t * context, scpi_reg_val_t val, scpi_reg_nam
  * @param name - register name
  * @return register value
  */
-scpi_reg_val_t SCPIParser::SCPI_RegGet(scpi_t * context, scpi_reg_name_t name) {
-    if ((name < SCPI_REG_COUNT) && (context->registers != NULL)) {
-        return context->registers[name];
+scpi_reg_val_t SCPIParser::SCPI_RegGet(scpi_reg_name_t name) {
+    if ((name < SCPI_REG_COUNT) && (context.registers != NULL)) {
+        return context.registers[name];
     } else {
         return 0;
     }
@@ -1071,10 +1054,10 @@ scpi_reg_val_t SCPIParser::SCPI_RegGet(scpi_t * context, scpi_reg_name_t name) {
  * @param ctrl number of controll message
  * @param value value of related register
  */
-size_t SCPIParser::writeControl(scpi_t * context, scpi_ctrl_name_t ctrl, scpi_reg_val_t val) {
-    if (context && context->interface && context->interface->control) {
-        return SCPI_Control(context, ctrl, val);
-        //return context->interface->control(context, ctrl, val);
+size_t SCPIParser::writeControl(scpi_ctrl_name_t ctrl, scpi_reg_val_t val) {
+    if (context.interface && context.interface->control) {
+        return SCPI_Control(ctrl, val);
+        //return context.interface->control(ctrl, val);
     } else {
         return 0;
     }
@@ -1087,25 +1070,25 @@ size_t SCPIParser::writeControl(scpi_t * context, scpi_ctrl_name_t ctrl, scpi_re
  * @param name - register name
  * @param val - new value
  */
-void SCPIParser::SCPI_RegSet(scpi_t * context, scpi_reg_name_t name, scpi_reg_val_t val) {
+void SCPIParser::SCPI_RegSet(scpi_reg_name_t name, scpi_reg_val_t val) {
     scpi_bool_t srq = FALSE;
     scpi_reg_val_t mask;
     scpi_reg_val_t old_val;
 
-    if ((name >= SCPI_REG_COUNT) || (context->registers == NULL)) {
+    if ((name >= SCPI_REG_COUNT) || (context.registers == NULL)) {
         return;
     }
 
     /* store old register value */
-    old_val = context->registers[name];
+    old_val = context.registers[name];
 
     /* set register value */
-    context->registers[name] = val;
+    context.registers[name] = val;
 
     /** @TODO: remove recutsion */
     switch (name) {
     case SCPI_REG_STB:
-        mask = SCPI_RegGet(context, SCPI_REG_SRE);
+        mask = SCPI_RegGet(SCPI_REG_SRE);
         mask &= ~STB_SRQ;
         if (val & mask) {
             val |= STB_SRQ;
@@ -1118,25 +1101,25 @@ void SCPIParser::SCPI_RegSet(scpi_t * context, scpi_reg_name_t name, scpi_reg_va
         }
         break;
     case SCPI_REG_SRE:
-        regUpdate(context, SCPI_REG_STB);
+        regUpdate(SCPI_REG_STB);
         break;
     case SCPI_REG_ESR:
-        regUpdateSTB(context, val, SCPI_REG_ESE, STB_ESR);
+        regUpdateSTB(val, SCPI_REG_ESE, STB_ESR);
         break;
     case SCPI_REG_ESE:
-        regUpdate(context, SCPI_REG_ESR);
+        regUpdate(SCPI_REG_ESR);
         break;
     case SCPI_REG_QUES:
-        regUpdateSTB(context, val, SCPI_REG_QUESE, STB_QES);
+        regUpdateSTB(val, SCPI_REG_QUESE, STB_QES);
         break;
     case SCPI_REG_QUESE:
-        regUpdate(context, SCPI_REG_QUES);
+        regUpdate(SCPI_REG_QUES);
         break;
     case SCPI_REG_OPER:
-        regUpdateSTB(context, val, SCPI_REG_OPERE, STB_OPS);
+        regUpdateSTB(val, SCPI_REG_OPERE, STB_OPS);
         break;
     case SCPI_REG_OPERE:
-        regUpdate(context, SCPI_REG_OPER);
+        regUpdate(SCPI_REG_OPER);
         break;
 
 
@@ -1146,10 +1129,10 @@ void SCPIParser::SCPI_RegSet(scpi_t * context, scpi_reg_name_t name, scpi_reg_va
     }
 
     /* set updated register value */
-    context->registers[name] = val;
+    context.registers[name] = val;
 
     if (srq) {
-        writeControl(context, SCPI_CTRL_SRQ, SCPI_RegGet(context, SCPI_REG_STB));
+        writeControl(SCPI_CTRL_SRQ, SCPI_RegGet(SCPI_REG_STB));
     }
 }
 
@@ -1158,8 +1141,8 @@ void SCPIParser::SCPI_RegSet(scpi_t * context, scpi_reg_name_t name, scpi_reg_va
  * @param name - register name
  * @param bits bit mask
  */
-void SCPIParser::SCPI_RegSetBits(scpi_t * context, scpi_reg_name_t name, scpi_reg_val_t bits) {
-    SCPI_RegSet(context, name, SCPI_RegGet(context, name) | bits);
+void SCPIParser::SCPI_RegSetBits(scpi_reg_name_t name, scpi_reg_val_t bits) {
+    SCPI_RegSet(name, SCPI_RegGet(name) | bits);
 }
 
 /**
@@ -1167,17 +1150,17 @@ void SCPIParser::SCPI_RegSetBits(scpi_t * context, scpi_reg_name_t name, scpi_re
  * @param name - register name
  * @param bits bit mask
  */
-void SCPIParser::SCPI_RegClearBits(scpi_t * context, scpi_reg_name_t name, scpi_reg_val_t bits) {
-    SCPI_RegSet(context, name, SCPI_RegGet(context, name) & ~bits);
+void SCPIParser::SCPI_RegClearBits(scpi_reg_name_t name, scpi_reg_val_t bits) {
+    SCPI_RegSet(name, SCPI_RegGet(name) & ~bits);
 }
 
 /**
  * Clear event register
  * @param context
  */
-void SCPIParser::SCPI_EventClear(scpi_t * context) {
+void SCPIParser::SCPI_EventClear() {
     /* TODO */
-    SCPI_RegSet(context, SCPI_REG_ESR, 0);
+    SCPI_RegSet(SCPI_REG_ESR, 0);
 }
 
 /**
@@ -1186,11 +1169,11 @@ void SCPIParser::SCPI_EventClear(scpi_t * context) {
  * @param context
  * @return
  */
-scpi_result_t SCPIParser::SCPI_CoreCls(void *context) {
-    SCPI_EventClear((scpi_t*)context);
-    SCPI_ErrorClear((scpi_t*)context);
-    SCPI_RegSet((scpi_t*)context, SCPI_REG_OPER, 0);
-    SCPI_RegSet((scpi_t*)context, SCPI_REG_QUES, 0);
+scpi_result_t SCPIParser::SCPI_CoreCls() {
+    SCPI_EventClear();
+    SCPI_ErrorClear();
+    SCPI_RegSet( SCPI_REG_OPER, 0);
+    SCPI_RegSet(SCPI_REG_QUES, 0);
     return SCPI_RES_OK;
 }
 
@@ -1199,10 +1182,10 @@ scpi_result_t SCPIParser::SCPI_CoreCls(void *context) {
  * @param context
  * @return
  */
-scpi_result_t SCPIParser::SCPI_CoreEse(scpi_t * context) {
+scpi_result_t SCPIParser::SCPI_CoreEse() {
     int32_t new_ESE;
-    if (SCPI_ParamInt(context, &new_ESE, TRUE)) {
-        SCPI_RegSet(context, SCPI_REG_ESE, new_ESE);
+    if (SCPI_ParamInt(&new_ESE, TRUE)) {
+        SCPI_RegSet(SCPI_REG_ESE, new_ESE);
     }
     return SCPI_RES_OK;
 }
@@ -1212,8 +1195,8 @@ scpi_result_t SCPIParser::SCPI_CoreEse(scpi_t * context) {
  * @param context
  * @return
  */
-scpi_result_t SCPIParser::SCPI_CoreEseQ(scpi_t * context) {
-    SCPI_ResultInt(context, SCPI_RegGet(context, SCPI_REG_ESE));
+scpi_result_t SCPIParser::SCPI_CoreEseQ() {
+    SCPI_ResultInt(SCPI_RegGet(SCPI_REG_ESE));
     return SCPI_RES_OK;
 }
 
@@ -1222,9 +1205,9 @@ scpi_result_t SCPIParser::SCPI_CoreEseQ(scpi_t * context) {
  * @param context
  * @return
  */
-scpi_result_t SCPIParser::SCPI_CoreEsrQ(scpi_t * context) {
-    SCPI_ResultInt(context, SCPI_RegGet(context, SCPI_REG_ESR));
-    SCPI_RegSet(context, SCPI_REG_ESR, 0);
+scpi_result_t SCPIParser::SCPI_CoreEsrQ() {
+    SCPI_ResultInt(SCPI_RegGet(SCPI_REG_ESR));
+    SCPI_RegSet(SCPI_REG_ESR, 0);
     return SCPI_RES_OK;
 }
 
@@ -1239,11 +1222,11 @@ scpi_result_t SCPIParser::SCPI_CoreEsrQ(scpi_t * context) {
  * @param context
  * @return
  */
-scpi_result_t SCPIParser::SCPI_CoreIdnQ(scpi_t * context) {
-    SCPI_ResultString(context, context->idn[0]);
-    SCPI_ResultString(context, context->idn[1]);
-    SCPI_ResultString(context, context->idn[2]);
-    SCPI_ResultString(context, context->idn[3]);
+scpi_result_t SCPIParser::SCPI_CoreIdnQ() {
+    SCPI_ResultString(context.idn[0]);
+    SCPI_ResultString(context.idn[1]);
+    SCPI_ResultString(context.idn[2]);
+    SCPI_ResultString(context.idn[3]);
     return SCPI_RES_OK;
 }
 
@@ -1252,8 +1235,8 @@ scpi_result_t SCPIParser::SCPI_CoreIdnQ(scpi_t * context) {
  * @param context
  * @return
  */
-scpi_result_t SCPIParser::SCPI_CoreOpc(scpi_t * context) {
-    SCPI_RegSetBits(context, SCPI_REG_ESR, ESR_OPC);
+scpi_result_t SCPIParser::SCPI_CoreOpc() {
+    SCPI_RegSetBits(SCPI_REG_ESR, ESR_OPC);
     return SCPI_RES_OK;
 }
 
@@ -1262,9 +1245,9 @@ scpi_result_t SCPIParser::SCPI_CoreOpc(scpi_t * context) {
  * @param context
  * @return
  */
-scpi_result_t SCPIParser::SCPI_CoreOpcQ(scpi_t * context) {
+scpi_result_t SCPIParser::SCPI_CoreOpcQ() {
     /* Operation is always completed */
-    SCPI_ResultInt(context, 1);
+    SCPI_ResultInt(1);
     return SCPI_RES_OK;
 }
 
@@ -1273,10 +1256,10 @@ scpi_result_t SCPIParser::SCPI_CoreOpcQ(scpi_t * context) {
  * @param context
  * @return
  */
-scpi_result_t SCPIParser::SCPI_CoreRst(scpi_t * context) {
-    if (context && context->interface && context->interface->reset) {
-        return SCPI_Reset(context);
-        //return context->interface->reset(context);
+scpi_result_t SCPIParser::SCPI_CoreRst() {
+    if (context.interface && context.interface->reset) {
+        return SCPI_Reset();
+        //return context.interface->reset(context);
     }
     return SCPI_RES_OK;
 }
@@ -1286,10 +1269,10 @@ scpi_result_t SCPIParser::SCPI_CoreRst(scpi_t * context) {
  * @param context
  * @return
  */
-scpi_result_t SCPIParser::SCPI_CoreSre(scpi_t * context) {
+scpi_result_t SCPIParser::SCPI_CoreSre() {
     int32_t new_SRE;
-    if (SCPI_ParamInt(context, &new_SRE, TRUE)) {
-        SCPI_RegSet(context, SCPI_REG_SRE, new_SRE);
+    if (SCPI_ParamInt(&new_SRE, TRUE)) {
+        SCPI_RegSet(SCPI_REG_SRE, new_SRE);
     }
     return SCPI_RES_OK;
 }
@@ -1299,8 +1282,8 @@ scpi_result_t SCPIParser::SCPI_CoreSre(scpi_t * context) {
  * @param context
  * @return
  */
-scpi_result_t SCPIParser::SCPI_CoreSreQ(scpi_t * context) {
-    SCPI_ResultInt(context, SCPI_RegGet(context, SCPI_REG_SRE));
+scpi_result_t SCPIParser::SCPI_CoreSreQ() {
+    SCPI_ResultInt(SCPI_RegGet(SCPI_REG_SRE));
     return SCPI_RES_OK;
 }
 
@@ -1309,8 +1292,8 @@ scpi_result_t SCPIParser::SCPI_CoreSreQ(scpi_t * context) {
  * @param context
  * @return
  */
-scpi_result_t SCPIParser::SCPI_CoreStbQ(scpi_t * context) {
-    SCPI_ResultInt(context, SCPI_RegGet(context, SCPI_REG_STB));
+scpi_result_t SCPIParser::SCPI_CoreStbQ() {
+    SCPI_ResultInt(SCPI_RegGet(SCPI_REG_STB));
     return SCPI_RES_OK;
 }
 
@@ -1319,13 +1302,13 @@ scpi_result_t SCPIParser::SCPI_CoreStbQ(scpi_t * context) {
  * @param context
  * @return
  */
-scpi_result_t SCPIParser::SCPI_CoreTstQ(scpi_t * context) {
+scpi_result_t SCPIParser::SCPI_CoreTstQ() {
     int result = 0;
-    if (context && context->interface && context->interface->test) {
-        result=SCPI_Test(context);
-        //result = context->interface->test(context);
+    if (context.interface && context.interface->test) {
+        result=SCPI_Test();
+        //result = context.interface->test(context);
     }
-    SCPI_ResultInt(context, result);
+    SCPI_ResultInt(result);
     return SCPI_RES_OK;
 }
 
@@ -1334,7 +1317,7 @@ scpi_result_t SCPIParser::SCPI_CoreTstQ(scpi_t * context) {
  * @param context
  * @return
  */
-scpi_result_t SCPIParser::SCPI_CoreWai(scpi_t * context) {
+scpi_result_t SCPIParser::SCPI_CoreWai() {
     (void) context;
     /* NOP */
     return SCPI_RES_OK;
@@ -1345,27 +1328,27 @@ scpi_result_t SCPIParser::SCPI_CoreWai(scpi_t * context) {
 
 
 
-size_t SCPIParser::SCPI_Write(void *context, const char *data, size_t len)
+size_t SCPIParser::SCPI_Write(const char *data, size_t len)
 {
 
 }
 
-int SCPIParser::SCPI_Error(void *context, int_fast16_t err)
+int SCPIParser::SCPI_Error(int_fast16_t err)
 {
 
 }
 
-scpi_result_t SCPIParser::SCPI_Control(void *context, scpi_ctrl_name_t ctrl, scpi_reg_val_t val)
+scpi_result_t SCPIParser::SCPI_Control(scpi_ctrl_name_t ctrl, scpi_reg_val_t val)
 {
 
 }
 
-scpi_result_t SCPIParser::SCPI_Reset(void *context)
+scpi_result_t SCPIParser::SCPI_Reset()
 {
 
 }
 
-scpi_result_t SCPIParser::SCPI_Flush(void *context)
+scpi_result_t SCPIParser::SCPI_Flush()
 {
 
 }
